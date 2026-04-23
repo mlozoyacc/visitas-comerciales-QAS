@@ -977,12 +977,12 @@
                     <div class="form-group">
                         <label>Cliente</label>
                         <input type="text" id="cliente-buscar" list="clientes-list"
-                            placeholder="Escribe para buscar cliente..."
+                            placeholder="Primero selecciona un vendedor"
                             style="text-transform:uppercase;width:100%;box-sizing:border-box"
                             oninput="this.value=this.value.toUpperCase()"
-                            autocomplete="off"/>
+                            autocomplete="off"
+                            disabled/>
                         <datalist id="clientes-list"></datalist>
-                        <!-- campos ocultos para compatibilidad -->
                         <select id="cliente" style="display:none">
                             <option value="" selected></option>
                         </select>
@@ -2055,7 +2055,6 @@
                 // Limpiar formulario — conservar vendedor de sesión
                 const svEl = document.getElementById('vendedor');
                 if (vendedorSesion && vendedorSesion.modo === 'vendedor') {
-                    // Restaurar selección del vendedor y recargar sus clientes
                     const valBuscado = vendedorSesion.proveedor + '|' + vendedorSesion.nombre;
                     for (let opt of svEl.options) {
                         if (opt.value === valBuscado) { opt.selected = true; break; }
@@ -2063,18 +2062,22 @@
                     svEl.disabled = true;
                     cargarClientesPorVendedor(valBuscado);
                 } else if (vendedorSesion && vendedorSesion.modo === 'libre') {
-                    // Modo libre: el vendedor es un input de texto, no tocarlo
-                    const clienteLibre = document.getElementById('cliente');
-                    if (clienteLibre && clienteLibre.tagName === 'INPUT') clienteLibre.value = '';
+                    cargarClientesPorVendedor(vendedorSesion.nombre);
                 } else {
                     svEl.value = '';
-                    document.getElementById('cliente').innerHTML = '<option value="">Primero selecciona un vendedor</option>';
-                    document.getElementById('cliente').disabled = true;
+                    const dl = document.getElementById('clientes-list');
+                    if (dl) dl.innerHTML = '';
+                    clientesCache = [];
                 }
-                document.getElementById('cliente').style.display = 'block';
-                document.getElementById('cliente-buscar').value = '';
-                document.getElementById('cliente-buscar').disabled = true;
-                document.getElementById('cliente-buscar').placeholder = 'Primero selecciona un vendedor';
+                // Limpiar campo búsqueda — el datalist se recarga con cargarClientesPorVendedor
+                const buscarEl = document.getElementById('cliente-buscar');
+                if (buscarEl) {
+                    buscarEl.value = '';
+                    if (!vendedorSesion || vendedorSesion.modo === 'libre' || vendedorSesion.modo === 'vendedor') {
+                        buscarEl.placeholder = 'Escribe para buscar cliente...';
+                        buscarEl.disabled = false;
+                    }
+                }
                 document.getElementById('ubicacion').value = '';
                 document.getElementById('hora-visita').value = '';
                 document.getElementById('visita-lat').value = '';
