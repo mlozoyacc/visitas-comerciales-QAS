@@ -2138,8 +2138,7 @@
                         const o = document.createElement('option');
                         o.value = v.id;
                         const hora = (v.hora_visita || '').replace('T', ' ').slice(0, 16);
-                        const tipoLabel = v.tipo_cliente === 'PROSPECTO' ? '[PROSPECTO]' : '[CLIENTE]';
-                        o.textContent = tipoLabel + ' ' + escHtml(v.cliente) + ' — ' + hora;
+                        o.textContent = escHtml(v.cliente) + ' — ' + hora;
                         sv.appendChild(o);
                     });
                     sv.disabled = false;
