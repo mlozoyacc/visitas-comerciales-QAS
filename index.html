@@ -1593,15 +1593,59 @@
 
 
         // ── GPS MONITOR ──────────────────────────────────────────────
-        const GPS_RADIO_INVALIDA    = 250; // metros → cierre automático
-        const GPS_RADIO_ADVERTENCIA = 200; // metros → aviso al vendedor
+        const GPS_RADIO_INVALIDA    = 1500; // metros → cierre automático
+        const GPS_RADIO_ADVERTENCIA = 1200; // metros → aviso al vendedor
+        const GPS_ACCURACY_MAX      = 500; // ignorar lecturas con precisión peor a 500m
         let gpsWatchId        = null;
         let visitaActivaId    = null;
         let visitaActivaLat   = null;
         let visitaActivaLon   = null;
         let bannerVisible     = false;
-        let wakeLock          = null;  // Screen Wake Lock API
-        let invalidando       = false; // evita doble ejecución de invalidar
+        let wakeLock          = null;
+        let invalidando       = false;
+
+        // ── PERSISTENCIA EN localStorage ─────────────────────────────
+        function guardarVisitaActiva(id, lat, lon) {
+            try {
+                localStorage.setItem('visita_activa', JSON.stringify({ id, lat, lon, ts: Date.now() }));
+            } catch(e) {}
+        }
+
+        function limpiarVisitaActiva() {
+            try { localStorage.removeItem('visita_activa'); } catch(e) {}
+        }
+
+        function recuperarVisitaActiva() {
+            try {
+                const raw = localStorage.getItem('visita_activa');
+                if (!raw) return null;
+                const data = JSON.parse(raw);
+                // Descartar si tiene más de 12 horas (visita abandonada)
+                if (Date.now() - data.ts > 12 * 60 * 60 * 1000) {
+                    limpiarVisitaActiva();
+                    return null;
+                }
+                return data;
+            } catch(e) { return null; }
+        }
+
+        // Al cargar la página, restaurar monitor si había visita activa
+        window.addEventListener('load', async () => {
+            const saved = recuperarVisitaActiva();
+            if (saved) {
+                // Verificar en BD que la visita sigue En Proceso
+                try {
+                    const data = await sbFetch('visitas?id=eq.' + saved.id + '&select=estatus,cliente&limit=1');
+                    if (data && data.length > 0 && data[0].estatus === 'En Proceso') {
+                        console.log('Restaurando monitor GPS para visita:', data[0].cliente);
+                        iniciarMonitorGPS(saved.lat, saved.lon, saved.id);
+                        mostrarBanner('warning', '⚠️ Visita en proceso: ' + data[0].cliente + ' — recuerda cerrarla.');
+                    } else {
+                        limpiarVisitaActiva(); // ya fue cerrada o invalidada
+                    }
+                } catch(e) { limpiarVisitaActiva(); }
+            }
+        });
 
         // ── WAKE LOCK — mantiene pantalla activa en Android/Chrome ───
         async function pedirWakeLock() {
@@ -1664,8 +1708,7 @@
             navigator.geolocation.getCurrentPosition(
                 async function(pos) {
                     if (!visitaActivaId) return;
-                    // Ignorar lecturas con poca precisión
-                    if (pos.coords.accuracy > GPS_RADIO_INVALIDA) return;
+                    if (pos.coords.accuracy > GPS_ACCURACY_MAX) return;
                     const dist = calcularDistancia(
                         visitaActivaLat, visitaActivaLon,
                         pos.coords.latitude, pos.coords.longitude
@@ -1718,6 +1761,9 @@
             visitaActivaLon = lon;
             invalidando     = false;
 
+            // Persistir en localStorage para sobrevivir recargas
+            guardarVisitaActiva(idVisita, lat, lon);
+
             // Mostrar chip de visita activa en header
             document.getElementById('visita-activa-chip').classList.add('show');
 
@@ -1730,8 +1776,8 @@
             gpsWatchId = navigator.geolocation.watchPosition(
                 async function(pos) {
                     if (!visitaActivaId || invalidando) return;
-                    // Ignorar lecturas con poca precisión (fluctuación GPS)
-                    if (pos.coords.accuracy > GPS_RADIO_INVALIDA) return;
+                    // Ignorar lecturas con precisión muy mala (> 500m)
+                    if (pos.coords.accuracy > GPS_ACCURACY_MAX) return;
                     const dist = calcularDistancia(
                         visitaActivaLat, visitaActivaLon,
                         pos.coords.latitude, pos.coords.longitude
@@ -1763,6 +1809,7 @@
             visitaActivaLat = null;
             visitaActivaLon = null;
             invalidando     = false;
+            limpiarVisitaActiva();
             ocultarBanner();
             await liberarWakeLock();
             document.getElementById('visita-activa-chip').classList.remove('show');
@@ -1795,10 +1842,10 @@
             }
 
             mostrarBanner('danger',
-                '🚫 Visita marcada como No Válida: te alejaste más de 250m sin cerrarla.');
+                '🚫 Visita marcada como No Válida: te alejaste más de 1500m sin cerrarla.');
             enviarNotificacion(
                 '🚫 Visita No Válida',
-                'Te alejaste más de 250m sin cerrar la visita. Fue marcada como No Válida.'
+                'Te alejaste más de 1500m sin cerrar la visita. Fue marcada como No Válida.'
             );
             setTimeout(() => ocultarBanner(), 8000);
             actualizarKPI();
