@@ -964,7 +964,9 @@
 
                     <div class="form-group full">
                         <label>Hora de Inicio de Visita <span style="font-weight:400;color:var(--text-muted)">(se registra automáticamente al obtener ubicación)</span></label>
-                        <input type="datetime-local" id="hora-visita" readonly style="color:var(--text-muted);cursor:default" />
+                        <input type="text" id="hora-visita" readonly disabled
+                            style="color:var(--text-muted);cursor:default;-webkit-user-select:none;user-select:none;pointer-events:none;background:var(--surface2)" />
+                        <input type="hidden" id="hora-visita-raw" value=""/>
                     </div>
 
                     <div class="form-group">
@@ -2042,7 +2044,7 @@
             const match = clientesCache.find(c => c.label.toUpperCase() === clienteBuscar.toUpperCase());
             const cliente = match ? match.value : clienteBuscar;
             const tipoCliente = (cliente === '{SIN IDENTIFICAR}') ? 'SIN_IDENTIFICAR' : 'CLIENTE';
-            const horaVisita      = document.getElementById('hora-visita').value;
+            const horaVisita = document.getElementById('hora-visita-raw').value || document.getElementById('hora-visita').value;
             const ubicacion       = document.getElementById('ubicacion').value;
 
             const lat             = parseFloat(document.getElementById('visita-lat').value);
@@ -2127,6 +2129,7 @@
                 }
                 document.getElementById('ubicacion').value = '';
                 document.getElementById('hora-visita').value = '';
+                document.getElementById('hora-visita-raw').value = '';
                 document.getElementById('visita-lat').value = '';
                 document.getElementById('visita-lon').value = '';
 
@@ -2673,7 +2676,11 @@
                     String(_d.getDate()).padStart(2,'0') + 'T' +
                     String(_d.getHours()).padStart(2,'0') + ':' +
                     String(_d.getMinutes()).padStart(2,'0');
-                document.getElementById('hora-visita').value = horaLocal;
+                // Mostrar en formato legible, no editable
+                const horaDisplay = _d.toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' }) +
+                    '  ' + _d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit', hour12: true });
+                document.getElementById('hora-visita').value = horaDisplay;
+                document.getElementById('hora-visita-raw').value = horaLocal;
 
                 // Usar OpenStreetMap Nominatim (gratuito, sin API key)
                 fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=es`, {
